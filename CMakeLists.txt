@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 include(cmake/warning_setup.cmake)
+include(cmake/code_gen.cmake)
+
+
 
 project(wayland-sandbox LANGUAGES CXX)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -10,33 +13,8 @@ find_package(wayland_server 1.10.0 REQUIRED)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/xdg/generated/shell-protocol.cpp")
-    message(WARNING "GENERATING cpp")
-    execute_process(
-        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-        COMMAND wayland-scanner private-code /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg/generated/shell-protocol.cpp
-        OUTPUT_VARIABLE FUBUKI_CODEGEN_STDOUT
-        RESULT_VARIABLE FUBUKI_CODE_GEN_SUCCESS
-    )
-
-    if(FUBUKI_CODE_GEN_SUCCESS AND NOT FUBUKI_CODE_GEN_SUCCESS EQUAL 0)
-        message(FATAL_ERROR "Codegen failed with\n*************************************\n ${FUBUKI_CODEGEN_STDOUT}\n*************************************")
-    endif()
-endif()
-
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/xdg/generated/shell-client-protocol.hpp")
-    execute_process(
-        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-        COMMAND wayland-scanner client-header /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg/generated/shell-client-protocol.hpp
-        OUTPUT_VARIABLE FUBUKI_CODEGEN_STDOUT
-        RESULT_VARIABLE FUBUKI_CODE_GEN_SUCCESS
-    )
-
-    if(FUBUKI_CODE_GEN_SUCCESS AND NOT FUBUKI_CODE_GEN_SUCCESS EQUAL 0)
-        message(FATAL_ERROR "Codegen failed with\n*************************************\n ${FUBUKI_CODEGEN_STDOUT}\n*************************************")
-    endif()
-endif()
-
+gen_xdg_shell()
+gen_zxdg_decoration()
 
 add_executable(wayland-sandbox
     main.cpp
@@ -81,6 +59,13 @@ add_executable(wayland-sandbox
 
     xdg/generated/shell-protocol.cpp
     xdg/generated/shell-client-protocol.hpp
+
+    zxdg/decoration.hpp
+    zxdg/decoration.cpp
+
+    zxdg/generated/decoration-protocol.cpp
+    zxdg/generated/decoration-client-protocol.hpp
+    display.cpp
 )
 
 include(CheckFunctionExists)

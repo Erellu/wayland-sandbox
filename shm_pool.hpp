@@ -65,26 +65,13 @@ public:
         // Only format supported: ARGB8888
     };
 
-    struct global
+    shm_pool(display& parent, information i) : m_registry{parent}, m_globals{parent.globals()}, m_info{i}
     {
-        wl_shm* shm = nullptr;
-
-        global() noexcept                = default;
-        global(const global&)            = delete;
-        global& operator=(const global&) = delete;
-        global(global&& other) noexcept : shm{std::exchange(other.shm, nullptr)} {}
-        global& operator=(global&& other) noexcept
+        if(const auto error = create())
         {
-            swap(other);
-            return *this;
+            throw std::runtime_error("");
         }
-
-        void swap(global& other) noexcept { std::swap(shm, other.shm); }
-
-        friend void swap(global& a, global& b) noexcept { a.swap(b); }
-    };
-
-    shm_pool(display& parent, information i) : m_registry{parent}, m_info{i} {}
+    }
 
     shm_pool(const shm_pool&)            = delete;
     shm_pool& operator=(const shm_pool&) = delete;
@@ -94,7 +81,7 @@ public:
           m_fd{std::move(other.m_fd)},
           m_memory{std::move(other.m_memory)},
           m_info{other.m_info},
-          m_globals{std::move(other.m_globals)},
+          m_globals{other.m_globals},
           m_handle{std::exchange(other.m_handle, nullptr)}
     {
     }
@@ -122,9 +109,9 @@ public:
             return std::unexpected{any_call_info{}};
         }
 
-        auto result = shm_pool{token{}, *std::move(r), i};
+        auto result = shm_pool{token{}, parent.globals(), *std::move(r), i};
 
-        if(const auto error = result.create(parent))
+        if(const auto error = result.create())
         {
             return std::unexpected{any_call_info{}};
         }
@@ -165,7 +152,7 @@ public:
 
 private:
 
-    shm_pool(token, registry r, information i) noexcept : m_registry{std::move(r)}, m_info{i}
+    shm_pool(token, display::global g, registry r, information i) noexcept : m_registry{std::move(r)}, m_globals{g}, m_info{i}
     {
         m_info.width  = std::max(std::size_t{1}, m_info.width);
         m_info.height = std::max(std::size_t{1}, m_info.height);
@@ -173,16 +160,16 @@ private:
     }
 
     [[nodiscard]]
-    std::optional<any_call_info> create(display& parent) noexcept;
+    std::optional<any_call_info> create() noexcept;
 
     registry        m_registry;
     file_descriptor m_fd      = {};
     scoped_mmap     m_memory  = {};
-    global          m_globals = {};
+    display::global m_globals = {};
     information     m_info    = {};
     wl_shm_pool*    m_handle  = nullptr;
 };
 
 } // namespace fubuki::io::platform::linux_bsd::wayland
 
-#endif // SHM_POOL_HPP
+#endif // FUBUKI_IO_PLATFORM_LINUX_WAYLAND_SHM_POOL_HPP

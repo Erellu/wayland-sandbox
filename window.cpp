@@ -45,33 +45,22 @@ void apply_opacity(window::components& c)
         if(c.buffer.size_bytes() != expected)
         {
             std::cout << "buffer: " << c.buffer.size_bytes() << " expected: " << expected << "\n" << std::flush;
-            assert(c.buffer.size_bytes() == expected);
         }
+        assert(c.buffer.size_bytes() == expected);
     }
 
-    const auto alpha = static_cast<std::byte>(c.info.opacity * 255.f);
+    constexpr auto scale = 255.f;
 
-    auto alpha_bytes = c.buffer.memory() | std::views::enumerate
-        | std::views::filter(
-                           [](const auto& t) noexcept
-                           {
-                               const auto& [index, byte] = t;
-                               std::ignore               = byte;
-                               return (index % 4 == 3);
-                           })
-        | std::views::transform(
-                           [](const auto& t) noexcept -> std::byte&
-                           {
-                               auto& [index, byte] = t;
-                               std::ignore         = index;
-                               return byte;
-                           });
-
-    std::ranges::fill(alpha_bytes, alpha);
-
-    // constexpr auto fill = 0xFF'FF'00'00;
-    // std::span<std::uint32_t> data = {reinterpret_cast<std::uint32_t*>(c.buffer.memory().data()), c.buffer.memory().size_bytes() /
-    // sizeof(std::uint32_t)}; std::ranges::fill(data, fill);
+    std::ranges::fill(c.buffer.memory() | std::views::enumerate
+                          | std::views::filter(
+                              [](const auto& t) noexcept
+                              {
+                                  const auto& [index, byte] = t;
+                                  std::ignore               = byte;
+                                  return (index % 4 == 3); // The only format supported is A8R8G8B8, little-endian, thus this byte
+                              })
+                          | std::views::values,
+                      static_cast<std::byte>(c.info.opacity * scale));
 }
 
 namespace callback::xdg
@@ -108,9 +97,9 @@ constexpr xdg_surface_listener xdg_surface = {
 [[nodiscard]]
 std::optional<window::any_call_info> window::create(display& parent) noexcept
 {
-    constexpr auto fill = 0x00;
+    constexpr auto all_black = 0x00;
 
-    std::ranges::fill(m_components.buffer.memory(), std::byte{fill});
+    std::ranges::fill(m_components.buffer.memory(), std::byte{all_black});
 
     xdg_surface_add_listener(m_components.surface.xdg_handle(), std::addressof(listener::xdg_surface), std::addressof(m_components));
 
@@ -178,10 +167,14 @@ void window::resize(dimension2d d) noexcept
             }
 
             m_components.buffer = *std::move(new_buffer);
-            constexpr auto fill = 0x00;
+        }
+
+        // Re-give the buffer some data
+        {
+            constexpr auto all_black = 0x00;
 
             // auto* const data = reinterpret_cast<std::uint32_t*>(c.buffers.front().memory().data());
-            std::ranges::fill(m_components.buffer.memory(), std::byte{fill});
+            std::ranges::fill(m_components.buffer.memory(), std::byte{all_black});
 
             apply_opacity(m_components);
         }

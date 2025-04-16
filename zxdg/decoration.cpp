@@ -26,51 +26,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "generated/shell-client-protocol.hpp"
-#include "wm_base.hpp"
+#include "decoration.hpp"
 
-#include <cassert>
-#include <cstdint>
-#include <iostream>
-
-namespace fubuki::io::platform::linux_bsd::wayland::xdg
+namespace fubuki::io::platform::linux_bsd::wayland::zxdg
 {
+} // namespace fubuki::io::platform::linux_bsd::wayland::zxdg
 
-namespace
-{
-
-namespace callback
-{
-
-void pong(void* /*user*/, struct xdg_wm_base* handle, std::uint32_t serial) { xdg_wm_base_pong(handle, serial); }
-
-} // namespace callback
-
-namespace listener
-{
-
-constexpr xdg_wm_base_listener xdg = {
-    .ping = callback::pong,
-};
-
-} // namespace listener
-
-} // namespace
-
-[[nodiscard]]
-auto wm_base::create() noexcept -> std::optional<any_call_info>
-{
-    xdg_wm_base_add_listener(m_globals.wm_base, std::addressof(listener::xdg), nullptr);
-
-    if(m_globals.wm_base == nullptr)
-    {
-        std::cerr << "Parent display globals().wm_base was nullptr\n" << std::flush;
-        return any_call_info{};
-    }
-
-    m_handle = m_globals.wm_base;
-
-    return {};
-}
-
-} // namespace fubuki::io::platform::linux_bsd::wayland::xdg

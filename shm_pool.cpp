@@ -55,45 +55,14 @@ struct free_c_storage
 template<typename T>
 using unique_c_ptr = std::unique_ptr<T, free_c_storage<T>>;
 
-constexpr auto format = WL_SHM_FORMAT_ARGB8888;
-
-namespace callback::registry
-{
-
-void global(void* data, wl_registry* registry, std::uint32_t name, const char* c_interface, std::uint32_t /*version*/) noexcept
-{
-    auto* const pool = static_cast<shm_pool::global*>(data);
-
-    const std::string_view interface = c_interface;
-
-    if(interface == "wl_shm")
-    {
-        pool->shm = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
-    }
-}
-
-void global_remove(void* data, wl_registry* registry, std::uint32_t name) noexcept {}
-
-} // namespace callback::registry
-
-namespace listener
-{
-constexpr wl_registry_listener registry{.global = callback::registry::global, .global_remove = callback::registry::global_remove};
-} // namespace listener
-
 } // anonymous namespace
 
 [[nodiscard]]
-std::optional<shm_pool::any_call_info> shm_pool::create(display& parent) noexcept
+std::optional<shm_pool::any_call_info> shm_pool::create() noexcept
 {
-    wl_registry_add_listener(m_registry.handle(), std::addressof(listener::registry), std::addressof(m_globals));
-
-    // Sync to retrieve all registry objects
-    wl_display_roundtrip(parent.handle());
-
     if(m_globals.shm == nullptr)
     {
-        std::cerr << "Failed to get shm handle\n" << std::flush;
+        std::cerr << "Parent display globals().shm was nullptr\n" << std::flush;
         return any_call_info{};
     }
 

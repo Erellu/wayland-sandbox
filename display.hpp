@@ -30,9 +30,14 @@
 #define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DISPLAY_HPP
 
 #include <expected>
+#include <optional>
 #include <stdexcept>
+#include <utility>
 
 #include <wayland-client.h>
+
+struct xdg_wm_base;
+struct zxdg_decoration_manager_v1;
 
 namespace fubuki::io::platform::linux_bsd::wayland
 {
@@ -44,8 +49,29 @@ class display
     };
 
 public:
-    struct connection_error
+    struct any_call_info
     {
+    };
+
+    struct global
+    {
+        wl_compositor*    compositor    = nullptr;
+        wl_subcompositor* subcompositor = nullptr;
+        wl_shm*           shm           = nullptr;
+
+        xdg_wm_base*                wm_base            = nullptr;
+        zxdg_decoration_manager_v1* decoration_manager = nullptr;
+
+        void swap(global& other) noexcept
+        {
+            std::swap(compositor, other.compositor);
+            std::swap(subcompositor, other.subcompositor);
+            std::swap(shm, other.shm);
+            std::swap(wm_base, other.wm_base);
+            std::swap(decoration_manager, other.decoration_manager);
+        }
+
+        friend void swap(global& a, global& b) noexcept { a.swap(b); }
     };
 
     display(const char* name = nullptr) : m_handle{wl_display_connect(name)}
@@ -53,6 +79,11 @@ public:
         if(m_handle == nullptr)
         {
             throw std::runtime_error{"Failed to connect to Wayland display"};
+        }
+
+        if(const auto error = create())
+        {
+            throw std::runtime_error{"Failed to retrieve display globals"};
         }
     }
 
@@ -65,7 +96,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] static std::expected<display, connection_error> make(const char* name = nullptr) noexcept
+    [[nodiscard]] static std::expected<display, any_call_info> make(const char* name = nullptr) noexcept
     {
         display result{token{}};
 
@@ -73,7 +104,12 @@ public:
 
         if(not result)
         {
-            return std::unexpected{connection_error{}};
+            return std::unexpected{any_call_info{}};
+        }
+
+        if(const auto error = result.create())
+        {
+            return std::unexpected{any_call_info{}};
         }
 
         return result;
@@ -92,13 +128,24 @@ public:
     [[nodiscard]] auto*       handle() noexcept { return m_handle; }
     [[nodiscard]] const auto* handle() const noexcept { return m_handle; }
 
-    void        swap(display& other) noexcept { std::swap(m_handle, other.m_handle); }
+    [[nodiscard]] const auto& globals() const noexcept { return m_globals; }
+
+    void swap(display& other) noexcept
+    {
+        std::swap(m_handle, other.m_handle);
+        m_globals.swap(other.m_globals);
+    }
+
     friend void swap(display& a, display& b) noexcept { a.swap(b); }
 
 private:
     display(token) noexcept {}
 
-    wl_display* m_handle = nullptr;
+    [[nodiscard]]
+    std::optional<any_call_info> create() noexcept;
+
+    wl_display* m_handle  = nullptr;
+    global      m_globals = {};
 };
 
 } // namespace fubuki::io::platform::linux_bsd::wayland

@@ -26,51 +26,37 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "generated/shell-client-protocol.hpp"
-#include "wm_base.hpp"
+#ifndef FUBUKI_IO_PLATFORM_LINUX_WAYLAND_ZXDG_DECORATION_HPP
+#define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_ZXDG_DECORATION_HPP
 
-#include <cassert>
-#include <cstdint>
-#include <iostream>
+#include "../display.hpp"
+#include "../registry.hpp"
+#include "generated/decoration-client-protocol.hpp"
 
-namespace fubuki::io::platform::linux_bsd::wayland::xdg
+#include <utility>
+
+namespace fubuki::io::platform::linux_bsd::wayland::zxdg
 {
 
-namespace
+class decoration
 {
+public:
 
-namespace callback
-{
+    decoration();
 
-void pong(void* /*user*/, struct xdg_wm_base* handle, std::uint32_t serial) { xdg_wm_base_pong(handle, serial); }
-
-} // namespace callback
-
-namespace listener
-{
-
-constexpr xdg_wm_base_listener xdg = {
-    .ping = callback::pong,
-};
-
-} // namespace listener
-
-} // namespace
-
-[[nodiscard]]
-auto wm_base::create() noexcept -> std::optional<any_call_info>
-{
-    xdg_wm_base_add_listener(m_globals.wm_base, std::addressof(listener::xdg), nullptr);
-
-    if(m_globals.wm_base == nullptr)
+    ~decoration() noexcept
     {
-        std::cerr << "Parent display globals().wm_base was nullptr\n" << std::flush;
-        return any_call_info{};
+        if(m_handle != nullptr)
+        {
+            zxdg_toplevel_decoration_v1_destroy(m_handle);
+        }
     }
 
-    m_handle = m_globals.wm_base;
+private:
+    zxdg_toplevel_decoration_v1* m_handle = nullptr;
 
-    return {};
-}
+};
 
-} // namespace fubuki::io::platform::linux_bsd::wayland::xdg
+} // namespace fubuki::io::platform::linux_bsd::wayland::zxdg
+
+#endif // FUBUKI_IO_PLATFORM_LINUX_WAYLAND_ZXDG_DECORATION_HPP
