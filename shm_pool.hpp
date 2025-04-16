@@ -31,7 +31,6 @@
 
 #include "display.hpp"
 #include "file_descriptor.hpp"
-#include "registry.hpp"
 #include "scoped_mmap.hpp"
 
 #include <cstddef>
@@ -65,7 +64,7 @@ public:
         // Only format supported: ARGB8888
     };
 
-    shm_pool(display& parent, information i) : m_registry{parent}, m_globals{parent.globals()}, m_info{i}
+    shm_pool(display& parent, information i) : m_globals{parent.globals()}, m_info{i}
     {
         if(const auto error = create())
         {
@@ -77,8 +76,7 @@ public:
     shm_pool& operator=(const shm_pool&) = delete;
 
     shm_pool(shm_pool&& other) noexcept
-        : m_registry{std::move(other.m_registry)},
-          m_fd{std::move(other.m_fd)},
+        : m_fd{std::move(other.m_fd)},
           m_memory{std::move(other.m_memory)},
           m_info{other.m_info},
           m_globals{other.m_globals},
@@ -102,14 +100,7 @@ public:
 
     [[nodiscard]] static std::expected<shm_pool, any_call_info> make(display& parent, information i) noexcept
     {
-        auto r = registry::make(parent);
-
-        if(not r)
-        {
-            return std::unexpected{any_call_info{}};
-        }
-
-        auto result = shm_pool{token{}, parent.globals(), *std::move(r), i};
+        auto result = shm_pool{token{}, parent.globals(), i};
 
         if(const auto error = result.create())
         {
@@ -137,22 +128,18 @@ public:
 
     void swap(shm_pool& other) noexcept
     {
-        m_registry.swap(other.m_registry);
         m_fd.swap(other.m_fd);
         m_memory.swap(other.m_memory);
         m_globals.swap(other.m_globals);
         std::swap(m_info, other.m_info);
         std::swap(m_handle, other.m_handle);
-
-        wl_registry_set_user_data(m_registry.handle(), std::addressof(m_globals));
-        wl_registry_set_user_data(other.m_registry.handle(), std::addressof(other.m_globals));
     }
 
     friend void swap(shm_pool& a, shm_pool& b) noexcept { a.swap(b); }
 
 private:
 
-    shm_pool(token, display::global g, registry r, information i) noexcept : m_registry{std::move(r)}, m_globals{g}, m_info{i}
+    shm_pool(token, display::global g, information i) noexcept : m_globals{g}, m_info{i}
     {
         m_info.width  = std::max(std::size_t{1}, m_info.width);
         m_info.height = std::max(std::size_t{1}, m_info.height);
@@ -162,7 +149,6 @@ private:
     [[nodiscard]]
     std::optional<any_call_info> create() noexcept;
 
-    registry        m_registry;
     file_descriptor m_fd      = {};
     scoped_mmap     m_memory  = {};
     display::global m_globals = {};

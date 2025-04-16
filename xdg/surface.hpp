@@ -52,7 +52,7 @@ public:
     {
     };
 
-    surface(wm_base& parent)
+    surface(wm_base& parent) : surface{token{}, parent.globals()}
     {
         if(const auto error = create(parent))
         {
@@ -63,7 +63,12 @@ public:
     surface(const surface&)            = delete;
     surface& operator=(const surface&) = delete;
 
-    surface(surface&& other) noexcept : m_handle{std::exchange(other.m_handle, nullptr)}, m_xdg_handle{std::exchange(other.m_xdg_handle, nullptr)} {}
+    surface(surface&& other) noexcept
+        : m_handle{std::exchange(other.m_handle, nullptr)},
+          m_xdg_handle{std::exchange(other.m_xdg_handle, nullptr)},
+          m_globals{other.m_globals}
+    {
+    }
 
     surface& operator=(surface&& other) noexcept
     {
@@ -86,7 +91,7 @@ public:
 
     [[nodiscard]] static std::expected<surface, any_call_info> make(wm_base& parent) noexcept
     {
-        surface result{token{}};
+        surface result{token{}, parent.globals()};
 
         if(const auto error = result.create(parent))
         {
@@ -101,23 +106,27 @@ public:
     [[nodiscard]] auto*       xdg_handle() noexcept { return m_xdg_handle; }
     [[nodiscard]] const auto* xdg_handle() const noexcept { return m_xdg_handle; }
 
+    [[nodiscard]] const auto& globals() const noexcept { return m_globals; }
+
     void swap(surface& other) noexcept
     {
         std::swap(m_handle, other.m_handle);
         std::swap(m_xdg_handle, other.m_xdg_handle);
+        m_globals.swap(other.m_globals);
     }
 
     friend void swap(surface& a, surface& b) noexcept { a.swap(b); }
 
 private:
 
-    surface(token) noexcept {}
+    surface(token, display::global g) noexcept : m_globals{g} {}
 
     [[nodiscard]]
     std::optional<any_call_info> create(wm_base& parent) noexcept;
 
-    wl_surface*  m_handle     = {};
-    xdg_surface* m_xdg_handle = {};
+    wl_surface*     m_handle     = {};
+    xdg_surface*    m_xdg_handle = {};
+    display::global m_globals    = {};
 };
 
 } // namespace fubuki::io::platform::linux_bsd::wayland::xdg

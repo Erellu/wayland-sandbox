@@ -29,6 +29,7 @@
 #ifndef FUBUKI_IO_PLATFORM_LINUX_WAYLAND_WINDOW_HPP
 #define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_WINDOW_HPP
 
+#include "decoration.hpp"
 #include "display.hpp"
 #include "registry.hpp"
 #include "screen.hpp"
@@ -37,10 +38,10 @@
 #include "xdg/surface.hpp"
 #include "xdg/toplevel.hpp"
 #include "xdg/wm_base.hpp"
+#include "zxdg/decoration.hpp"
 
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include <wayland-client.h>
 
@@ -97,13 +98,33 @@ public:
 
         [[nodiscard]] xdg::toplevel construct_toplevel() { return xdg::toplevel{surface}; }
 
+        [[nodiscard]] std::optional<decoration> construct_decoration(display& parent, const window_info& i)
+        {
+            if(i.style == window_style::borderless)
+            {
+                return std::nullopt;
+            }
+
+            // Though Wayland windows are borderless by default (especially on platforms that don't support server-side decorations),
+            // the general agreement on desktop is that windows should have at least a close button
+
+            // Not supported on GNOME as of the time of writing
+            if(parent.globals().decoration_manager != nullptr)
+            {
+                return std::optional<decoration>{std::in_place, decoration{decoration::server_side{toplevel}}};
+            }
+
+            return decoration{decoration::client_side{}};
+        }
+
     public:
-        shm_pool      pool;
-        shm_buffer    buffer;
-        xdg::wm_base  wm_base;
-        xdg::surface  surface;
-        xdg::toplevel toplevel;
-        window_info   info;
+        shm_pool                  pool;
+        shm_buffer                buffer;
+        xdg::wm_base              wm_base;
+        xdg::surface              surface;
+        xdg::toplevel             toplevel;
+        std::optional<decoration> deco;
+        window_info               info;
 
         components(display& parent, window_info i)
             : pool{construct_pool(parent)},
@@ -111,16 +132,18 @@ public:
               wm_base{parent},
               surface{construct_surface()},
               toplevel{construct_toplevel()},
+              deco{construct_decoration(parent, i)},
               info{std::move(i)}
         {
         }
 
-        components(shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, window_info i) noexcept
+        components(shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, zxdg::decoration dec, window_info i) noexcept
             : pool{std::move(p)},
               buffer{std::move(buf)},
               wm_base{std::move(xm)},
               surface{std::move(surf)},
               toplevel{std::move(top)},
+              deco{std::move(dec)},
               info{std::move(i)}
 
         {
@@ -132,6 +155,7 @@ public:
               wm_base{std::move(other.wm_base)},
               surface{std::move(other.surface)},
               toplevel{std::move(other.toplevel)},
+              deco{std::move(other.deco)},
               info{std::move(other.info)}
         {
         }
@@ -152,6 +176,7 @@ public:
             wm_base.swap(other.wm_base);
             surface.swap(other.surface);
             toplevel.swap(other.toplevel);
+            deco.swap(other.deco);
             info.swap(other.info);
         }
 
@@ -231,6 +256,13 @@ public:
             return std::unexpected{any_call_info{}};
         }
 
+        auto deco = zxdg::decoration::make(*toplevel);
+
+        if(not deco)
+        {
+            return std::unexpected{any_call_info{}};
+        }
+
         auto result = window{token{},
                              *std::move(r),
                              *std::move(pool),
@@ -238,6 +270,7 @@ public:
                              *std::move(wm_base),
                              *std::move(surface),
                              *std::move(toplevel),
+                             *std::move(deco),
                              std::move(i)};
 
         if(const auto error = result.create(parent))
@@ -283,13 +316,14 @@ public:
 private:
 
     window(token,
-           registry      r,
-           shm_pool      pool,
-           shm_buffer    buffer,
-           xdg::wm_base  wm_base,
-           xdg::surface  surface,
-           xdg::toplevel toplevel,
-           window_info   i) noexcept
+           registry         r,
+           shm_pool         pool,
+           shm_buffer       buffer,
+           xdg::wm_base     wm_base,
+           xdg::surface     surface,
+           xdg::toplevel    toplevel,
+           zxdg::decoration deco,
+           window_info      i) noexcept
         : m_registry{std::move(r)},
           m_components{
               std::move(pool),
@@ -297,6 +331,7 @@ private:
               std::move(wm_base),
               std::move(surface),
               std::move(toplevel),
+              std::move(deco),
               std::move(i),
           }
     {

@@ -26,19 +26,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef FUBUKI_IO_PLATFORM_LINUX_WAYLAND_XDG_BASE_HPP
-#define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_XDG_BASE_HPP
+#ifndef FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECOR_CONTEXT_HPP
+#define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECOR_CONTEXT_HPP
 
 #include "../display.hpp"
-#include "generated/shell-client-protocol.hpp"
 
-#include <optional>
 #include <utility>
 
-namespace fubuki::io::platform::linux_bsd::wayland::xdg
+struct libdecor;
+
+namespace fubuki::io::platform::linux_bsd::wayland::decor
 {
 
-class wm_base
+class context
 {
     struct token
     {
@@ -50,38 +50,32 @@ public:
     {
     };
 
-    wm_base(display& parent) : wm_base{token{}, parent}
+    context(display& parent)
     {
-        if(const auto error = create())
+        if(const auto error = create(parent))
         {
             throw std::runtime_error("");
         }
     }
 
-    wm_base(const wm_base&)            = delete;
-    wm_base& operator=(const wm_base&) = delete;
+    context(const context&)            = delete;
+    context& operator=(const context&) = delete;
 
-    wm_base(wm_base&& other) noexcept : m_handle{std::exchange(other.m_handle, nullptr)}, m_globals{other.m_globals} {}
+    context(context&& other) noexcept : m_handle{std::exchange(other.m_handle, nullptr)} {}
 
-    wm_base& operator=(wm_base&& other) noexcept
+    context& operator=(context&& other) noexcept
     {
         swap(other);
         return *this;
     }
 
-    ~wm_base() noexcept
-    {
-        if(m_handle != nullptr)
-        {
-            xdg_wm_base_destroy(m_handle);
-        }
-    }
+    ~context() noexcept;
 
-    [[nodiscard]] static std::expected<wm_base, any_call_info> make(display& parent) noexcept
+    [[nodiscard]] static std::expected<context, any_call_info> make(display& parent) noexcept
     {
-        auto result = wm_base{token{}, parent};
+        auto result = context{token{}};
 
-        if(const auto error = result.create())
+        if(const auto error = result.create(parent))
         {
             return std::unexpected{any_call_info{}};
         }
@@ -92,27 +86,19 @@ public:
     [[nodiscard]] auto*       handle() noexcept { return m_handle; }
     [[nodiscard]] const auto* handle() const noexcept { return m_handle; }
 
-    [[nodiscard]] const auto& globals() const noexcept { return m_globals; }
+    void swap(context& other) noexcept { std::swap(m_handle, other.m_handle); }
 
-    void swap(wm_base& other) noexcept
-    {
-        std::swap(m_handle, other.m_handle);
-        m_globals.swap(other.m_globals);
-    }
-
-    friend void swap(wm_base& a, wm_base& b) noexcept { a.swap(b); }
+    friend void swap(context& a, context& b) noexcept { a.swap(b); }
 
 private:
 
-    wm_base(token, display& parent) noexcept : m_globals{parent.globals()} {}
+    context(token) noexcept {}
 
-    [[nodiscard]]
-    std::optional<any_call_info> create() noexcept;
+    [[nodiscard]] std::optional<any_call_info> create(display& parent) noexcept;
 
-    xdg_wm_base*    m_handle  = nullptr;
-    display::global m_globals = {};
+    libdecor* m_handle = nullptr;
 };
 
-} // namespace fubuki::io::platform::linux_bsd::wayland::xdg
+} // namespace fubuki::io::platform::linux_bsd::wayland::decor
 
-#endif // FUBUKI_IO_PLATFORM_LINUX_WAYLAND_XDG_BASE_HPP
+#endif // FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECOR_CONTEXT_HPP

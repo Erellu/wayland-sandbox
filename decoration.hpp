@@ -26,30 +26,66 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "decoration.hpp"
+#ifndef FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECORATION_HPP
+#define FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECORATION_HPP
 
-#include <iostream>
+#include "zxdg/decoration.hpp"
 
-namespace fubuki::io::platform::linux_bsd::wayland::zxdg
+#include <variant>
+#include <optional>
+
+namespace fubuki::io::platform::linux_bsd::wayland
 {
 
-[[nodiscard]]
-auto decoration::create(xdg::toplevel& parent) noexcept -> std::optional<any_call_info>
+class decoration
 {
-    if(parent.globals().decoration_manager == nullptr)
+public:
+
+    using server_side = zxdg::decoration;
+    struct client_side
     {
-        std::cerr << "Parent decoration_manager was nullptr\n" << std::endl;
-        return any_call_info{};
-    }
+    };
 
-    m_handle = zxdg_decoration_manager_v1_get_toplevel_decoration(parent.globals().decoration_manager, parent.handle());
 
-    if(m_handle == nullptr)
-    {
-        return any_call_info{};
-    }
+    using any = std::variant<client_side, server_side>;
 
-    return {};
-}
+    decoration(server_side d) noexcept : m_value{std::in_place_type<server_side>, std::move(d)} {}
 
-} // namespace fubuki::io::platform::linux_bsd::wayland::zxdg
+    decoration(client_side d) noexcept : m_value{std::in_place_type<client_side>, std::move(d)} {}
+
+
+    // [[nodiscard]] auto server_handle() noexcept
+    // {
+    //     std::optional<zxdg_toplevel_decoration_v1*> result = {};
+
+    //     if(auto* const ptr = std::get_if<server_side>(std::addressof(m_value)))
+    //     {
+    //         result = ptr->handle();
+    //     }
+
+    //     return result;
+    // }
+
+
+    // [[nodiscard]] auto server_handle() noexcept
+    // {
+    //     std::optional<zxdg_toplevel_decoration_v1*> result = {};
+
+    //     if(auto* const ptr = std::get_if<server_side>(std::addressof(m_value)))
+    //     {
+    //         result = ptr->handle();
+    //     }
+
+    //     return result;
+    // }
+
+
+
+private:
+
+    any m_value;
+};
+
+} // namespace fubuki::io::platform::linux_bsd::wayland
+
+#endif // FUBUKI_IO_PLATFORM_LINUX_WAYLAND_DECORATION_HPP

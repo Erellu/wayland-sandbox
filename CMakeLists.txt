@@ -2,19 +2,23 @@ cmake_minimum_required(VERSION 3.16)
 include(cmake/warning_setup.cmake)
 include(cmake/code_gen.cmake)
 
-
-
 project(wayland-sandbox LANGUAGES CXX)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(wayland_client 1.10.0 REQUIRED)
 find_package(wayland_server 1.10.0 REQUIRED)
 
+# Unfortunately, libdecor provided by apt doesn't have libdecor_frame_set_user_data, which is required to handle move assignment and move construction
+# of wrapper objects. So we're forced to build it ourselves
+#find_package(libdecor_0 REQUIRED)
+add_subdirectory(libdecor)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 gen_xdg_shell()
 gen_zxdg_decoration()
+
 
 add_executable(wayland-sandbox
     main.cpp
@@ -66,6 +70,9 @@ add_executable(wayland-sandbox
     zxdg/generated/decoration-protocol.cpp
     zxdg/generated/decoration-client-protocol.hpp
     display.cpp
+    decoration.hpp
+    decor/context.hpp decor/context.cpp
+    decor/frame.hpp decor/frame.cpp
 )
 
 include(CheckFunctionExists)
@@ -75,7 +82,7 @@ if (FUBUKI_HAS_MEMFD_CREATE)
 endif()
 
 # target_compile_definitions(wayland-sandbox PRIVATE _POSIX_C_SOURCE=200112L)
-target_link_libraries(wayland-sandbox PRIVATE ${wayland_client_LIBRARIES})
+target_link_libraries(wayland-sandbox PRIVATE ${wayland_client_LIBRARIES} )
 target_link_libraries(wayland-sandbox PRIVATE rt)
 target_compile_options(wayland-sandbox PRIVATE ${FUBUKI_WARNINGS})
 

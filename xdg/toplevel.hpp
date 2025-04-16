@@ -46,8 +46,7 @@ public:
     {
     };
 
-
-    toplevel(surface& parent)
+    toplevel(surface& parent) : toplevel{token{}, parent.globals()}
     {
         if(const auto error = create(parent))
         {
@@ -58,7 +57,7 @@ public:
     toplevel(const toplevel&)            = delete;
     toplevel& operator=(const toplevel&) = delete;
 
-    toplevel(toplevel&& other) noexcept : m_handle{std::exchange(other.m_handle, nullptr)} {}
+    toplevel(toplevel&& other) noexcept : m_handle{std::exchange(other.m_handle, nullptr)}, m_globals{other.m_globals} {}
 
     toplevel& operator=(toplevel&& other) noexcept
     {
@@ -76,7 +75,7 @@ public:
 
     [[nodiscard]] static std::expected<toplevel, any_call_info> make(surface& parent) noexcept
     {
-        toplevel result{token{}};
+        toplevel result{token{}, parent.globals()};
 
         if(const auto error = result.create(parent))
         {
@@ -89,22 +88,25 @@ public:
     [[nodiscard]] auto*       handle() noexcept { return m_handle; }
     [[nodiscard]] const auto* handle() const noexcept { return m_handle; }
 
+    [[nodiscard]] const auto& globals() const noexcept { return m_globals; }
+
     void swap(toplevel& other) noexcept
     {
         std::swap(m_handle, other.m_handle);
+        m_globals.swap(other.m_globals);
     }
 
     friend void swap(toplevel& a, toplevel& b) noexcept { a.swap(b); }
 
-
 private:
 
-    toplevel(token) noexcept {}
+    toplevel(token, display::global g) noexcept : m_globals{g} {}
 
     [[nodiscard]]
     std::optional<any_call_info> create(surface& parent) noexcept;
 
-    xdg_toplevel* m_handle = nullptr;
+    xdg_toplevel*   m_handle  = nullptr;
+    display::global m_globals = {};
 };
 
 } // namespace fubuki::io::platform::linux_bsd::wayland::xdg

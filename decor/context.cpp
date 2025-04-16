@@ -26,23 +26,38 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "decoration.hpp"
+#include "context.hpp"
+#include "libdecor-0/libdecor.h"
 
-#include <iostream>
-
-namespace fubuki::io::platform::linux_bsd::wayland::zxdg
+namespace fubuki::io::platform::linux_bsd::wayland::decor
 {
 
-[[nodiscard]]
-auto decoration::create(xdg::toplevel& parent) noexcept -> std::optional<any_call_info>
+namespace
 {
-    if(parent.globals().decoration_manager == nullptr)
-    {
-        std::cerr << "Parent decoration_manager was nullptr\n" << std::endl;
-        return any_call_info{};
-    }
 
-    m_handle = zxdg_decoration_manager_v1_get_toplevel_decoration(parent.globals().decoration_manager, parent.handle());
+namespace callback
+{
+void error(libdecor* /*context*/, libdecor_error /*error*/, const char* /*message*/) {}
+
+} // namespace callback
+
+namespace listener
+{
+
+[[nodiscard]] auto& libdecor() noexcept
+{
+
+    static libdecor_interface v{.error = callback::error};
+    return v;
+}
+
+} // namespace listener
+
+} // anonymous namespace
+
+[[nodiscard]] auto context::create(display& parent) noexcept -> std::optional<any_call_info>
+{
+    m_handle = libdecor_new(parent.handle(), std::addressof(listener::libdecor()));
 
     if(m_handle == nullptr)
     {
@@ -52,4 +67,12 @@ auto decoration::create(xdg::toplevel& parent) noexcept -> std::optional<any_cal
     return {};
 }
 
-} // namespace fubuki::io::platform::linux_bsd::wayland::zxdg
+context::~context() noexcept
+{
+    if(m_handle != nullptr)
+    {
+        libdecor_unref(m_handle);
+    }
+}
+
+} // namespace fubuki::io::platform::linux_bsd::wayland::decor
