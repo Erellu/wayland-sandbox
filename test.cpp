@@ -68,8 +68,15 @@ namespace sandbox::wayland
 
 [[nodiscard]] int enumerate_screens()
 {
+    auto display = fbk_wl::display::make();
+
+    if(not display)
+    {
+        return 1;
+    }
+
     std::cout << "screens:\n";
-    for(const auto& p : fbk_wl::screen::enumerate())
+    for(const auto& p : fbk_wl::screen::enumerate(*display))
     {
         std::cout << p << "\n******************************\n";
     }
@@ -121,7 +128,7 @@ namespace sandbox::wayland
                                        fubuki::io::platform::window_info{
                                            .title       = "Wayland window",
                                            .size        = {640, 480},
-                                           .coordinates = {1408, 568},
+                                           .coordinates = {0, 0},
                                            .opacity     = 1.f,
                                            .style       = {},
     });
@@ -133,7 +140,27 @@ namespace sandbox::wayland
 
     // window->show();
 
+    bool s = true;
+
     while (wl_display_dispatch(display->handle())) {
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+
+        if(s)
+        {
+            // window->move({512, 512});
+            window->resize({480, 640});
+            window->set_opacity(0.1f);
+        }
+        else
+        {
+            // window->move({0, 0});
+            window->resize({640, 480});
+            window->set_opacity(1.f);
+        }
+
+        s = not s;
+
+
         /* This space deliberately left blank */
     }
 

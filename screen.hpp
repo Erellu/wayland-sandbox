@@ -31,12 +31,14 @@
 
 #include "screen_properties.hpp"
 
+#include "display.hpp"
+
 namespace fubuki::io::platform::linux_bsd::wayland::screen
 {
 
 using properties = platform::screen_properties;
 
-[[nodiscard]] std::vector<properties> enumerate();
+[[nodiscard]] std::vector<properties> enumerate(display& p);
 
 } // namespace fubuki::io::platform::linux_bsd::wayland::screen
 

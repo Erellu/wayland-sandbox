@@ -148,7 +148,7 @@ private:
 
         if(m_info.width.has_value())
         {
-            m_info.width = std::min(std::size_t{1}, *m_info.width);
+            m_info.width = std::max(std::size_t{1}, *m_info.width);
         }
         else
         {
@@ -157,7 +157,7 @@ private:
 
         if(m_info.height.has_value())
         {
-            m_info.height = std::min(std::size_t{1}, *m_info.height);
+            m_info.height = std::max(std::size_t{1}, *m_info.height);
         }
         else
         {

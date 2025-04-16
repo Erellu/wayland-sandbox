@@ -125,18 +125,11 @@ constexpr wl_registry_listener registry_listener = {
 
 } // namespace
 
-[[nodiscard]] std::vector<properties> enumerate()
+[[nodiscard]] std::vector<properties> enumerate(display& p)
 {
-    auto main_display = display::make();
-
-    if(not main_display)
-    {
-        return {};
-    }
-
     const std::scoped_lock<std::mutex> lock{globals::sync()};
 
-    auto display_registry = registry(*main_display);
+    registry display_registry {p};
 
     if(not display_registry)
     {
@@ -144,9 +137,9 @@ constexpr wl_registry_listener registry_listener = {
     }
 
     wl_registry_add_listener(display_registry.handle(), &callbacks::registry_listener, nullptr);
-    wl_display_roundtrip(main_display->handle());
+    wl_display_roundtrip(p.handle());
 
-    while(wl_display_dispatch(main_display->handle()) == -1)
+    while(wl_display_dispatch(p.handle()) == -1)
     {
     }
 

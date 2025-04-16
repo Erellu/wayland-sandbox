@@ -31,6 +31,7 @@
 
 #include "display.hpp"
 #include "registry.hpp"
+#include "screen.hpp"
 #include "shm_buffer.hpp"
 #include "window_info.hpp"
 #include "xdg/surface.hpp"
@@ -38,7 +39,6 @@
 #include "xdg/wm_base.hpp"
 
 #include <optional>
-#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -53,22 +53,44 @@ class window
     {
     };
 
-    static constexpr std::size_t shm_pool_layers = 2;
-
-
 
 public:
 
     class components
     {
-        [[nodiscard]] auto construct_buffers()
+        [[nodiscard]] static auto construct_pool(display& parent)
         {
-            std::vector<shm_buffer> buffers = {};
-            buffers.reserve(shm_pool_layers);
+            const auto available_screens = screen::enumerate(parent);
 
-            buffers.emplace_back(shm_buffer{pool, {.index = 0}});
-            buffers.emplace_back(shm_buffer{pool, {.index = 1}});
-            return buffers;
+            // if(not available_screens){throw call_exception{available_screens.error()};}
+
+            std::size_t width  = 0;
+            std::size_t height = 0;
+
+            for(const auto& s : available_screens)
+            {
+                width += s.area.extent.width;
+                height += s.area.extent.height;
+            }
+
+            width  = std::max(std::size_t{1}, width);
+            height = std::max(std::size_t{1}, height);
+
+            return shm_pool{
+                parent, {.width = width, .height = height, .layers = 1}
+            };
+        }
+
+        [[nodiscard]] auto construct_buffer(const window_info& i)
+        {
+            return shm_buffer{
+                pool,
+                {
+                  .index  = 0,
+                  .width  = i.size.width,
+                  .height = i.size.height,
+                  }
+            };
         }
 
         [[nodiscard]] xdg::surface construct_surface() { return xdg::surface{wm_base}; }
@@ -76,37 +98,41 @@ public:
         [[nodiscard]] xdg::toplevel construct_toplevel() { return xdg::toplevel{surface}; }
 
     public:
-        shm_pool                pool;
-        std::vector<shm_buffer> buffers;
-        xdg::wm_base            wm_base;
-        xdg::surface            surface;
-        xdg::toplevel           toplevel;
+        shm_pool      pool;
+        shm_buffer    buffer;
+        xdg::wm_base  wm_base;
+        xdg::surface  surface;
+        xdg::toplevel toplevel;
+        window_info   info;
 
-        components(display& parent, const window_info& i) :
-                                                     pool{parent, {.width = static_cast<std::size_t>(i.size.width), .height = static_cast<std::size_t>(i.size.height), .layers = shm_pool_layers}},
-                                                     buffers{construct_buffers()},
-                                                     wm_base{parent},
-                                                     surface{construct_surface()},
-                                                     toplevel{construct_toplevel()}
+        components(display& parent, window_info i)
+            : pool{construct_pool(parent)},
+              buffer{construct_buffer(i)},
+              wm_base{parent},
+              surface{construct_surface()},
+              toplevel{construct_toplevel()},
+              info{std::move(i)}
         {
         }
 
-        components(shm_pool pool, std::vector<shm_buffer> buffers, xdg::wm_base wm_base, xdg::surface surface, xdg::toplevel toplevel) noexcept
-            : pool{std::move(pool)},
-              buffers{std::move(buffers)},
-              wm_base{std::move(wm_base)},
-              surface{std::move(surface)},
-              toplevel{std::move(toplevel)}
+        components(shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, window_info i) noexcept
+            : pool{std::move(p)},
+              buffer{std::move(buf)},
+              wm_base{std::move(xm)},
+              surface{std::move(surf)},
+              toplevel{std::move(top)},
+              info{std::move(i)}
 
         {
         }
 
         components(components&& other) noexcept
             : pool{std::move(other.pool)},
-              buffers{std::move(other.buffers)},
+              buffer{std::move(other.buffer)},
               wm_base{std::move(other.wm_base)},
               surface{std::move(other.surface)},
-              toplevel{std::move(other.toplevel)}
+              toplevel{std::move(other.toplevel)},
+              info{std::move(other.info)}
         {
         }
 
@@ -122,10 +148,11 @@ public:
         void swap(components& other) noexcept
         {
             pool.swap(other.pool);
-            buffers.swap(other.buffers);
+            buffer.swap(other.buffer);
             wm_base.swap(other.wm_base);
             surface.swap(other.surface);
             toplevel.swap(other.toplevel);
+            info.swap(other.info);
         }
 
         friend void swap(components& a, components& b) noexcept { a.swap(b); }
@@ -135,7 +162,7 @@ public:
     {
     };
 
-    window(display& parent, window_info i) : m_registry{parent}, m_components{parent, i}, m_info{std::move(i)}
+    window(display& parent, window_info i) : m_registry{parent}, m_components{parent, std::move(i)}
     {
         if(const auto error = create(parent))
         {
@@ -146,12 +173,9 @@ public:
     window(const window&)            = delete;
     window& operator=(const window&) = delete;
 
-    window(window&& other) noexcept
-        : m_registry{std::move(other.m_registry)},
-          m_components{std::move(other.m_components)},
-          m_info{std::move(other.m_info)}
+    window(window&& other) noexcept : m_registry{std::move(other.m_registry)}, m_components{std::move(other.m_components)}
     {
-        swap_xdg_surface_listener_data(other);
+        xdg_surface_set_user_data(m_components.surface.xdg_handle(), std::addressof(m_components));
     }
 
     window& operator=(window&& other) noexcept
@@ -171,27 +195,19 @@ public:
             return std::unexpected{any_call_info{}};
         }
 
-        auto pool = shm_pool::make(
-            parent, {.width = static_cast<std::size_t>(i.size.width), .height = static_cast<std::size_t>(i.size.height), .layers = shm_pool_layers});
+        auto pool = shm_pool::make(parent,
+                                   {.width = static_cast<std::size_t>(i.size.width), .height = static_cast<std::size_t>(i.size.height), .layers = 1});
 
         if(not pool)
         {
             return std::unexpected{any_call_info{}};
         }
 
-        std::vector<shm_buffer> buffers = {};
-        buffers.reserve(shm_pool_layers);
+        auto buffer = shm_buffer::make(*pool, {.index = 0, .width = i.size.width, .height = i.size.height});
 
-        for(const auto i : std::views::iota(0u, shm_pool_layers))
+        if(not buffer)
         {
-            auto buffer = shm_buffer::make(*pool, {.index = i});
-
-            if(not buffer)
-            {
-                return std::unexpected{any_call_info{}};
-            }
-
-            buffers.emplace_back(*std::move(buffer));
+            return std::unexpected{any_call_info{}};
         }
 
         auto wm_base = xdg::wm_base::make(parent);
@@ -218,7 +234,7 @@ public:
         auto result = window{token{},
                              *std::move(r),
                              *std::move(pool),
-                             std::move(buffers),
+                             *std::move(buffer),
                              *std::move(wm_base),
                              *std::move(surface),
                              *std::move(toplevel),
@@ -238,7 +254,7 @@ public:
     [[nodiscard]] const auto* xdg_handle() const noexcept { return m_components.surface.xdg_handle(); }
 
     [[nodiscard]] const auto& pool() const noexcept { return m_components.pool; }
-    [[nodiscard]] const auto& buffers() const noexcept { return m_components.buffers; }
+    [[nodiscard]] const auto& buffer() const noexcept { return m_components.buffer; }
     [[nodiscard]] const auto& wm_base() const noexcept { return m_components.wm_base; }
     [[nodiscard]] const auto& surface() const noexcept { return m_components.surface; }
     [[nodiscard]] const auto& toplevel() const noexcept { return m_components.toplevel; }
@@ -257,9 +273,9 @@ public:
     {
         m_registry.swap(other.m_registry);
         m_components.swap(other.m_components);
-        m_info.swap(other.m_info);
 
-        swap_xdg_surface_listener_data(other);
+        xdg_surface_set_user_data(m_components.surface.xdg_handle(), std::addressof(m_components));
+        xdg_surface_set_user_data(other.m_components.surface.xdg_handle(), std::addressof(other.m_components));
     }
 
     friend void swap(window& a, window& b) noexcept { a.swap(b); }
@@ -267,35 +283,30 @@ public:
 private:
 
     window(token,
-           registry                r,
-           shm_pool                pool,
-           std::vector<shm_buffer> buffers,
-           xdg::wm_base            wm_base,
-           xdg::surface            surface,
-           xdg::toplevel           toplevel,
-           window_info             i) noexcept
+           registry      r,
+           shm_pool      pool,
+           shm_buffer    buffer,
+           xdg::wm_base  wm_base,
+           xdg::surface  surface,
+           xdg::toplevel toplevel,
+           window_info   i) noexcept
         : m_registry{std::move(r)},
           m_components{
               std::move(pool),
-              std::move(buffers),
+              std::move(buffer),
               std::move(wm_base),
               std::move(surface),
               std::move(toplevel),
-          },
-
-          m_info{std::move(i)}
+              std::move(i),
+          }
     {
     }
 
     [[nodiscard]]
     std::optional<any_call_info> create(display& parent) noexcept;
 
-    void swap_xdg_surface_listener_data(window& other) noexcept;
-
     registry   m_registry;
     components m_components;
-
-    window_info m_info = {};
 };
 
 } // namespace fubuki::io::platform::linux_bsd::wayland
