@@ -137,7 +137,8 @@ public:
         {
         }
 
-        components(shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, zxdg::decoration dec, window_info i) noexcept
+        components(
+            shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, std::optional<decoration> dec, window_info i) noexcept
             : pool{std::move(p)},
               buffer{std::move(buf)},
               wm_base{std::move(xm)},
@@ -178,6 +179,12 @@ public:
             toplevel.swap(other.toplevel);
             deco.swap(other.deco);
             info.swap(other.info);
+
+            xdg_surface_set_user_data(surface.xdg_handle(), this);
+            xdg_surface_set_user_data(other.surface.xdg_handle(), std::addressof(other));
+
+            xdg_toplevel_set_user_data(toplevel.handle(), this);
+            xdg_toplevel_set_user_data(other.toplevel.handle(), std::addressof(other));
         }
 
         friend void swap(components& a, components& b) noexcept { a.swap(b); }
@@ -256,11 +263,27 @@ public:
             return std::unexpected{any_call_info{}};
         }
 
-        auto deco = zxdg::decoration::make(*toplevel);
+        std::optional<decoration> deco = {};
 
-        if(not deco)
+        // Though Wayland windows are borderless by default (especially on platforms that don't support server-side decorations),
+        // the general agreement on desktop is that windows should have at least a close button
+
+        // Not supported on GNOME as of the time of writing
+        if(parent.globals().decoration_manager != nullptr)
         {
-            return std::unexpected{any_call_info{}};
+            auto ssd = decoration::server_side::make(*toplevel);
+
+            if(not ssd)
+            {
+                return std::unexpected{any_call_info{}};
+            }
+
+            deco = std::optional<decoration>{std::in_place, decoration{*std::move(ssd)}};
+        }
+
+        else
+        {
+            deco = decoration{decoration::client_side{}};
         }
 
         auto result = window{token{},
@@ -270,7 +293,7 @@ public:
                              *std::move(wm_base),
                              *std::move(surface),
                              *std::move(toplevel),
-                             *std::move(deco),
+                             std::move(deco),
                              std::move(i)};
 
         if(const auto error = result.create(parent))
@@ -316,14 +339,14 @@ public:
 private:
 
     window(token,
-           registry         r,
-           shm_pool         pool,
-           shm_buffer       buffer,
-           xdg::wm_base     wm_base,
-           xdg::surface     surface,
-           xdg::toplevel    toplevel,
-           zxdg::decoration deco,
-           window_info      i) noexcept
+           registry                  r,
+           shm_pool                  pool,
+           shm_buffer                buffer,
+           xdg::wm_base              wm_base,
+           xdg::surface              surface,
+           xdg::toplevel             toplevel,
+           std::optional<decoration> deco,
+           window_info               i) noexcept
         : m_registry{std::move(r)},
           m_components{
               std::move(pool),

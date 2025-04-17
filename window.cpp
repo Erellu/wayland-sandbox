@@ -39,16 +39,6 @@ namespace
 
 void apply_opacity(window::components& c)
 {
-    // TMP, debug code
-    {
-        const auto expected = static_cast<std::size_t>(c.info.size.width) * static_cast<std::size_t>(c.info.size.height) * 4;
-        if(c.buffer.size_bytes() != expected)
-        {
-            std::cout << "buffer: " << c.buffer.size_bytes() << " expected: " << expected << "\n" << std::flush;
-        }
-        assert(c.buffer.size_bytes() == expected);
-    }
-
     constexpr auto scale = 255.f;
 
     std::ranges::fill(c.buffer.memory() | std::views::enumerate
@@ -66,7 +56,10 @@ void apply_opacity(window::components& c)
 namespace callback::xdg
 {
 
-void surface_configure(void* data, xdg_surface* xdg_surface, std::uint32_t serial)
+namespace surface
+{
+
+void configure(void* data, xdg_surface* xdg_surface, std::uint32_t serial)
 {
     auto* w = static_cast<window::components*>(data);
     xdg_surface_ack_configure(xdg_surface, serial);
@@ -81,16 +74,36 @@ void surface_configure(void* data, xdg_surface* xdg_surface, std::uint32_t seria
     wl_surface_commit(w->surface.handle());
 }
 
-} // namespace callback::xdg
+} // namespace surface
 
-namespace listener
+namespace toplevel
 {
 
-constexpr xdg_surface_listener xdg_surface = {
-    .configure = callback::xdg::surface_configure,
+void configure(void* data, xdg_toplevel* /*toplevel*/, std::int32_t width, std::int32_t height, wl_array* /*states*/) noexcept
+{
+    auto* w      = static_cast<window::components*>(data);
+    w->info.size = {width, height};
+}
+
+void close(void* /*data*/, xdg_toplevel* /*xdg_toplevel*/) noexcept
+{
+    // process(event::close)
+}
+
+} // namespace toplevel
+
+} // namespace callback::xdg
+
+namespace listener::xdg
+{
+
+constexpr xdg_surface_listener surface = {
+    .configure = callback::xdg::surface::configure,
 };
 
-} // namespace listener
+constexpr xdg_toplevel_listener toplevel{.configure = callback::xdg::toplevel::configure, .close = callback::xdg::toplevel::close};
+
+} // namespace listener::xdg
 
 } // namespace
 
@@ -101,13 +114,15 @@ std::optional<window::any_call_info> window::create(display& parent) noexcept
 
     std::ranges::fill(m_components.buffer.memory(), std::byte{all_black});
 
-    xdg_surface_add_listener(m_components.surface.xdg_handle(), std::addressof(listener::xdg_surface), std::addressof(m_components));
+    xdg_surface_add_listener(m_components.surface.xdg_handle(), std::addressof(listener::xdg::surface), std::addressof(m_components));
 
     xdg_surface_set_window_geometry(m_components.surface.xdg_handle(),
                                     m_components.info.coordinates.x,
                                     m_components.info.coordinates.y,
                                     m_components.info.size.width,
                                     m_components.info.size.height);
+
+    xdg_toplevel_add_listener(m_components.toplevel.handle(), std::addressof(listener::xdg::toplevel), std::addressof(m_components));
 
     xdg_toplevel_set_title(m_components.toplevel.handle(), m_components.info.title.c_str());
 

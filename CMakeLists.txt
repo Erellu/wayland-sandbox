@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 include(cmake/warning_setup.cmake)
 include(cmake/code_gen.cmake)
 
@@ -17,16 +17,19 @@ endif()
 project(wayland-sandbox LANGUAGES CXX C)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# find_package(harfbuzz REQUIRED)
+# message(FATAL_ERROR ${HarfBuzz_LIBRARIES})
+
 find_package(wayland_client 1.10.0 REQUIRED)
-find_package(dbus 1.0 REQUIRED)
-find_package(Cairo REQUIRED)
-find_package(PangoCairo REQUIRED)
+# find_package(dbus 1.0 REQUIRED)
+# find_package(Glib REQUIRED)
+# find_package(Cairo REQUIRED)
+# find_package(Pango REQUIRED)
+# find_package(PangoCairo REQUIRED)
+
+
 # find_package(wayland_server 1.10.0 REQUIRED)
 
-# Unfortunately, libdecor provided by apt doesn't have libdecor_frame_set_user_data, which is required to handle move assignment and move construction
-# of wrapper objects. So we're forced to build it ourselves
-#find_package(libdecor_0 REQUIRED)
-add_subdirectory(libdecor)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,11 +90,62 @@ add_executable(wayland-sandbox
     zxdg/generated/decoration-protocol.cpp
     zxdg/generated/decoration-client-protocol.hpp
 
-    decor/context.hpp
-    decor/context.cpp
-    decor/frame.hpp
-    decor/frame.cpp
+    # decor/context.hpp
+    # decor/context.cpp
+    # decor/frame.hpp
+    # decor/frame.cpp
 )
+
+#------------------------------------------------------------------------------
+# Build libdecor
+# Unfortunately, libdecor provided by apt doesn't have libdecor_frame_set_user_data, which is required to handle move assignment and move construction
+# of wrapper objects. So we're forced to build it ourselves
+#find_package(libdecor_0 REQUIRED)
+# FIXME: doesn't work
+
+# set(meson_build_type "")
+
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+#     set(meson_build_type "debug")
+# else()
+#     set(meson_build_type "release")
+# endif()
+
+# make_directory(${CMAKE_CURRENT_BINARY_DIR}/libdecor/install)
+
+# set(libdecor_src_dir ${CMAKE_CURRENT_LIST_DIR}/libdecor/libdecor)
+# set(meson_build_dir "${CMAKE_CURRENT_BINARY_DIR}/libdecor/build")
+# set(meson_prefix "-Dprefix=${CMAKE_CURRENT_BINARY_DIR}/libdecor/install")
+# set(meson_options "-Dgtk=disabled")
+
+#
+# execute_process(
+#     WORKING_DIRECTORY ${libdecor_src_dir}
+#     COMMAND meson ${meson_build_dir}
+#             --buildtype ${meson_build_type}
+#             ${meson_prefix}
+#             ${meson_options}
+#     COMMAND meson compile
+#             -C ${meson_build_dir}
+#     COMMAND meson install
+#             -C ${meson_build_dir}
+#     OUTPUT_VARIABLE FUBUKI_LIBDECOR_MESON_STDOUT
+#     RESULT_VARIABLE FUBUKI_LIBDECOR_SUCCESS
+#     COMMAND_ECHO STDERR
+# )
+
+# if(FUBUKI_LIBDECOR_SUCCESS AND NOT FUBUKI_LIBDECOR_SUCCESS EQUAL 0)
+#     message(FATAL_ERROR "Failed to build libdecor. Process exited with code ${FUBUKI_LIBDECOR_SUCCESS}:\n*************************************\n ${FUBUKI_LIBDECOR_MESON_STDOUT}\n*************************************")
+# endif()
+
+# if(FUBUKI_LIBDECOR_SUCCESS AND NOT FUBUKI_LIBDECOR_SUCCESS EQUAL 0)
+#     message(FATAL_ERROR "Failed to install libdecor. Process exited with code  ${FUBUKI_LIBDECOR_SUCCESS}:\n*************************************\n ${FUBUKI_LIBDECOR_MESON_STDOUT}\n*************************************")
+# endif()
+
+# add_library(decor SHARED IMPORTED)
+# set_target_properties(decor PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libdecor/src/libdecor-0.so)
+
+#------------------------------------------------------------------------------
 
 include(CheckFunctionExists)
 check_function_exists(memfd_create FUBUKI_HAS_MEMFD_CREATE)
@@ -102,7 +156,7 @@ endif()
 # target_compile_definitions(wayland-sandbox PRIVATE _POSIX_C_SOURCE=200112L)
 target_link_libraries(wayland-sandbox PRIVATE ${wayland_client_LIBRARIES} )
 target_link_libraries(wayland-sandbox PRIVATE rt)
-target_link_libraries(wayland-sandbox PRIVATE decor)
+# target_link_libraries(wayland-sandbox PRIVATE decor)
 target_compile_options(wayland-sandbox PRIVATE ${FUBUKI_WARNINGS})
 
 include(GNUInstallDirs)

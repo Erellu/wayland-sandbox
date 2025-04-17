@@ -32,7 +32,6 @@
 #include "zxdg/generated/decoration-client-protocol.hpp"
 
 #include <cstdint>
-#include <iostream>
 
 namespace fubuki::io::platform::linux_bsd::wayland
 {
@@ -48,8 +47,6 @@ void global(void* data, wl_registry* registry, std::uint32_t name, const char* c
     auto* const dp = static_cast<display::global*>(data);
 
     const std::string_view interface = c_interface;
-
-    std::cout << "interface: " << interface << "\n" << std::flush;
 
     if(interface == wl_compositor_interface.name)
     {

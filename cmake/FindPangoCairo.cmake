@@ -4,12 +4,14 @@ pkg_check_modules(PC_PANGOCAIRO QUIET pangocairo)
 find_path(PANGOCAIRO_INCLUDE_DIR
           NAMES pangocairo.h
           HINTS ${PC_PANGOCAIRO_INCLUDE_DIRS}
-          PATH_SUFFIXES pango)
+          PATH_SUFFIXES pango-1.0)
 
 find_library(PANGOCAIRO_LIBRARY
              NAMES pangocairo-1.0
              HINTS ${PC_PANGOCAIRO_LIBRARY_DIRS}
 )
+
+# message(FATAL_ERROR ${PANGOCAIRO_INCLUDE_DIR})
 
 set(PANGOCAIRO_LIBRARIES ${PANGOCAIRO_LIBRARY})
 
