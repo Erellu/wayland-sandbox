@@ -1,0 +1,3 @@
+[submodule "libdecor/libdecor"]
+	path = libdecor/libdecor
+	url = https://gitlab.freedesktop.org/libdecor/libdecor.git

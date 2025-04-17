@@ -27,7 +27,7 @@
  */
 
 #include "frame.hpp"
-#include "libdecor-0/libdecor.h"
+#include "../libdecor/libdecor/src/libdecor.h"
 
 namespace fubuki::io::platform::linux_bsd::wayland::decor
 {
@@ -71,17 +71,12 @@ void dismiss_popup(struct libdecor_frame* frame, const char* seat_name, void* us
 namespace listener
 {
 
-[[nodiscard]] auto& libdecor() noexcept
-{
-    static libdecor_frame_interface l{
-        .configure     = callback::configure,
-        .close         = callback::close,
-        .commit        = callback::commit,
-        .dismiss_popup = callback::dismiss_popup,
-    };
-
-    return l;
-}
+constexpr libdecor_frame_interface libdecor{
+    .configure     = callback::configure,
+    .close         = callback::close,
+    .commit        = callback::commit,
+    .dismiss_popup = callback::dismiss_popup,
+};
 
 } // namespace listener
 
@@ -108,7 +103,7 @@ frame::~frame() noexcept
 {
     if(m_handle != nullptr)
     {
-        libdecor_unref(m_handle);
+        libdecor_frame_unref(m_handle);
     }
 }
 

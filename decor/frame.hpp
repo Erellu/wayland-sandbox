@@ -80,7 +80,7 @@ public:
     frame(const frame&)            = delete;
     frame& operator=(const frame&) = delete;
 
-    frame(frame&& other) noexcept : m_context{std::move(other.m_context)}, m_handle{std::exchange(other.m_handle, nullptr)} {}
+    frame(frame&& other) noexcept;
 
     frame& operator=(frame&& other) noexcept
     {

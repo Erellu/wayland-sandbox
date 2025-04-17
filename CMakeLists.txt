@@ -2,11 +2,26 @@ cmake_minimum_required(VERSION 3.16)
 include(cmake/warning_setup.cmake)
 include(cmake/code_gen.cmake)
 
-project(wayland-sandbox LANGUAGES CXX)
+#------------------------------------------------------------------------------
+# CMake options
+
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Build type (Debug, Release, RelWithDebInfo, MinSizeRel)")
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug;Release;RelWithDebInfo;MinSizeRel")
+
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" )
+    message(FATAL_ERROR "Invalid value for CMAKE_BUILD_TYPE: '${CMAKE_BUILD_TYPE}' (required one of 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel')")
+endif()
+
+#------------------------------------------------------------------------------
+
+project(wayland-sandbox LANGUAGES CXX C)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(wayland_client 1.10.0 REQUIRED)
-find_package(wayland_server 1.10.0 REQUIRED)
+find_package(dbus 1.0 REQUIRED)
+find_package(Cairo REQUIRED)
+find_package(PangoCairo REQUIRED)
+# find_package(wayland_server 1.10.0 REQUIRED)
 
 # Unfortunately, libdecor provided by apt doesn't have libdecor_frame_set_user_data, which is required to handle move assignment and move construction
 # of wrapper objects. So we're forced to build it ourselves
@@ -19,11 +34,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 gen_xdg_shell()
 gen_zxdg_decoration()
 
-
 add_executable(wayland-sandbox
     main.cpp
 
     display.hpp
+    display.cpp
+
+    decoration.hpp
 
     file_descriptor.hpp
     file_descriptor.cpp
@@ -69,10 +86,11 @@ add_executable(wayland-sandbox
 
     zxdg/generated/decoration-protocol.cpp
     zxdg/generated/decoration-client-protocol.hpp
-    display.cpp
-    decoration.hpp
-    decor/context.hpp decor/context.cpp
-    decor/frame.hpp decor/frame.cpp
+
+    decor/context.hpp
+    decor/context.cpp
+    decor/frame.hpp
+    decor/frame.cpp
 )
 
 include(CheckFunctionExists)
@@ -84,6 +102,7 @@ endif()
 # target_compile_definitions(wayland-sandbox PRIVATE _POSIX_C_SOURCE=200112L)
 target_link_libraries(wayland-sandbox PRIVATE ${wayland_client_LIBRARIES} )
 target_link_libraries(wayland-sandbox PRIVATE rt)
+target_link_libraries(wayland-sandbox PRIVATE decor)
 target_compile_options(wayland-sandbox PRIVATE ${FUBUKI_WARNINGS})
 
 include(GNUInstallDirs)

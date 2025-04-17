@@ -27,7 +27,7 @@
  */
 
 #include "context.hpp"
-#include "libdecor-0/libdecor.h"
+#include "../libdecor/libdecor/src/libdecor.h"
 
 namespace fubuki::io::platform::linux_bsd::wayland::decor
 {
