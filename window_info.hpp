@@ -113,6 +113,7 @@ struct window_state
     bool activated = false;
     bool focused   = false;
     bool enabled   = true;
+    bool hovered   = false;
     // TODO: more
 
     void swap(window_state& other) noexcept
@@ -121,6 +122,7 @@ struct window_state
         std::swap(activated, other.activated);
         std::swap(focused, other.focused);
         std::swap(enabled, other.enabled);
+        std::swap(hovered, other.hovered);
     }
 
     friend void swap(window_state& a, window_state& b) noexcept { a.swap(b); }
@@ -128,11 +130,12 @@ struct window_state
     template<typename char_type, typename traits = std::char_traits<char_type>>
     friend std::basic_ostream<char_type, traits>& operator<<(std::basic_ostream<char_type, traits>& out, const window_state s)
     {
-        return out << "window states:{"
+        return out << "\"window_state\":{"
                    << "closed: " << s.closed << "\t"
                    << "activated: " << s.activated << "\t"
                    << "focused: " << s.focused << "\t"
                    << "enabled: " << s.enabled << "\t"
+                   << "hovered: " << s.hovered << "\t"
                    << "}";
     }
 };

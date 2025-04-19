@@ -89,6 +89,9 @@ add_executable(wayland-sandbox
 
     zxdg/generated/decoration-protocol.cpp
     zxdg/generated/decoration-client-protocol.hpp
+    seat.hpp
+    keyboard.hpp
+    pointer.hpp
 
     # decor/context.hpp
     # decor/context.cpp
@@ -115,10 +118,10 @@ add_executable(wayland-sandbox
 
 # set(libdecor_src_dir ${CMAKE_CURRENT_LIST_DIR}/libdecor/libdecor)
 # set(meson_build_dir "${CMAKE_CURRENT_BINARY_DIR}/libdecor/build")
-# set(meson_prefix "-Dprefix=${CMAKE_CURRENT_BINARY_DIR}/libdecor/install")
+# set(meson_prefix "-Dprefix=${CMAKE_INSTALL_PREFIX}/deps/libdecor")
 # set(meson_options "-Dgtk=disabled")
 
-#
+
 # execute_process(
 #     WORKING_DIRECTORY ${libdecor_src_dir}
 #     COMMAND meson ${meson_build_dir}
@@ -126,9 +129,9 @@ add_executable(wayland-sandbox
 #             ${meson_prefix}
 #             ${meson_options}
 #     COMMAND meson compile
-#             -C ${meson_build_dir}
+#             \-C ${meson_build_dir}
 #     COMMAND meson install
-#             -C ${meson_build_dir}
+#             \-C ${meson_build_dir}
 #     OUTPUT_VARIABLE FUBUKI_LIBDECOR_MESON_STDOUT
 #     RESULT_VARIABLE FUBUKI_LIBDECOR_SUCCESS
 #     COMMAND_ECHO STDERR

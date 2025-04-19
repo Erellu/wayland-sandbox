@@ -58,6 +58,7 @@ public:
         wl_compositor*    compositor    = nullptr;
         wl_subcompositor* subcompositor = nullptr;
         wl_shm*           shm           = nullptr;
+        wl_seat*          seat          = nullptr;
 
         xdg_wm_base*                wm_base            = nullptr;
         zxdg_decoration_manager_v1* decoration_manager = nullptr;
@@ -67,6 +68,8 @@ public:
             std::swap(compositor, other.compositor);
             std::swap(subcompositor, other.subcompositor);
             std::swap(shm, other.shm);
+            std::swap(seat, other.seat);
+
             std::swap(wm_base, other.wm_base);
             std::swap(decoration_manager, other.decoration_manager);
         }

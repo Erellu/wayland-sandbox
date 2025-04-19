@@ -53,7 +53,61 @@ void apply_opacity(window::components& c)
                       static_cast<std::byte>(c.info.opacity * scale));
 }
 
-namespace callback::xdg
+namespace callback
+{
+
+namespace seat
+{
+
+namespace pointer
+{
+
+void enter(void* data, wl_pointer* /*pointer*/, std::uint32_t /*serial*/, wl_surface* surface, wl_fixed_t /*sx*/, wl_fixed_t /*sy*/) noexcept
+{
+    auto* w = static_cast<window::components*>(data);
+
+    // May happen if the surface got destroyed by some other mean
+    if(surface == nullptr)
+    {
+        return;
+    }
+
+    w->state.hovered = true;
+    // TODO: enter event
+}
+
+void leave(void* data, wl_pointer* /*pointer*/, std::uint32_t /*serial*/, wl_surface* surface)
+{
+    auto* w = static_cast<window::components*>(data);
+
+    // May happen if the surface got destroyed by some other mean
+    if(surface == nullptr)
+    {
+        return;
+    }
+
+    w->state.hovered = false;
+}
+
+void motion(void* data, struct wl_pointer* pointer, uint32_t time, wl_fixed_t sx, wl_fixed_t sy) noexcept {}
+
+void button(void* data, wl_pointer* pointer, std::uint32_t serial, std::uint32_t time, std::uint32_t button, std::uint32_t state) noexcept
+{
+    auto* w = static_cast<window::components*>(data);
+
+    // TODO
+    // if(w->internal_state.inputs.mouse.)
+}
+
+} // namespace pointer
+
+namespace keyboard
+{
+} // namespace keyboard
+
+} // namespace seat
+
+namespace xdg
 {
 
 namespace surface
@@ -92,9 +146,42 @@ void close(void* /*data*/, xdg_toplevel* /*xdg_toplevel*/) noexcept
 
 } // namespace toplevel
 
-} // namespace callback::xdg
+} // namespace xdg
 
-namespace listener::xdg
+} // namespace callback
+
+namespace listener
+{
+
+namespace seat
+{
+
+constexpr wl_pointer_listener pointer{
+    .enter                   = {},
+    .leave                   = {},
+    .motion                  = {},
+    .button                  = {},
+    .axis                    = {},
+    .frame                   = {},
+    .axis_source             = {},
+    .axis_stop               = {},
+    .axis_discrete           = {},
+    .axis_value120           = {},
+    .axis_relative_direction = {},
+};
+
+constexpr wl_keyboard_listener keyboard{
+    .keymap      = {},
+    .enter       = {},
+    .leave       = {},
+    .key         = {},
+    .modifiers   = {},
+    .repeat_info = {},
+};
+
+} // namespace seat
+
+namespace xdg
 {
 
 constexpr xdg_surface_listener surface = {
@@ -103,7 +190,9 @@ constexpr xdg_surface_listener surface = {
 
 constexpr xdg_toplevel_listener toplevel{.configure = callback::xdg::toplevel::configure, .close = callback::xdg::toplevel::close};
 
-} // namespace listener::xdg
+} // namespace xdg
+
+} // namespace listener
 
 } // namespace
 
@@ -125,6 +214,10 @@ std::optional<window::any_call_info> window::create(display& parent) noexcept
     xdg_toplevel_add_listener(m_components.toplevel.handle(), std::addressof(listener::xdg::toplevel), std::addressof(m_components));
 
     xdg_toplevel_set_title(m_components.toplevel.handle(), m_components.info.title.c_str());
+
+    wl_pointer_add_listener(m_components.inputs.parts().mouse.handle(), std::addressof(listener::seat::pointer), std::addressof(m_components));
+
+    wl_keyboard_add_listener(m_components.inputs.parts().keyboard.handle(), std::addressof(listener::seat::keyboard), std::addressof(m_components));
 
     wl_surface_commit(m_components.surface.handle());
     wl_display_roundtrip(parent.handle());

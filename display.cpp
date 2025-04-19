@@ -63,6 +63,12 @@ void global(void* data, wl_registry* registry, std::uint32_t name, const char* c
         dp->shm = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
     }
 
+    else if(interface == wl_seat_interface.name)
+    {
+        constexpr auto seat_interface_v = 7;
+        dp->seat                        = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, seat_interface_v));
+    }
+
     else if(interface == xdg_wm_base_interface.name)
     {
         dp->wm_base = static_cast<xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));

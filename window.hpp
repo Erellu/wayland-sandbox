@@ -33,12 +33,12 @@
 #include "display.hpp"
 #include "registry.hpp"
 #include "screen.hpp"
+#include "seat.hpp"
 #include "shm_buffer.hpp"
 #include "window_info.hpp"
 #include "xdg/surface.hpp"
 #include "xdg/toplevel.hpp"
 #include "xdg/wm_base.hpp"
-#include "zxdg/decoration.hpp"
 
 #include <optional>
 #include <utility>
@@ -118,13 +118,60 @@ public:
         }
 
     public:
+
+        struct event_state
+        {
+            struct seat
+            {
+                struct kb
+                {
+
+                    [[nodiscard]] friend constexpr bool operator==(const kb& a, const kb& b) noexcept  = default;
+                    [[nodiscard]] friend constexpr bool operator!=(const kb& a, const kb& b) noexcept  = default;
+                    [[nodiscard]] friend constexpr auto operator<=>(const kb& a, const kb& b) noexcept = default;
+                };
+
+                struct pointer
+                {
+                    struct button
+                    {
+                        std::optional<std::uint32_t> last_click_timestamp = {}; ///< Used to determine if the user double-clicked.
+
+                        [[nodiscard]] friend constexpr bool operator==(const button& a, const button& b) noexcept  = default;
+                        [[nodiscard]] friend constexpr bool operator!=(const button& a, const button& b) noexcept  = default;
+                        [[nodiscard]] friend constexpr auto operator<=>(const button& a, const button& b) noexcept = default;
+                    };
+
+                    button left   = {};
+                    button centre = {};
+                    button right  = {};
+
+                    [[nodiscard]] friend constexpr bool operator==(const pointer& a, const pointer& b) noexcept  = default;
+                    [[nodiscard]] friend constexpr bool operator!=(const pointer& a, const pointer& b) noexcept  = default;
+                    [[nodiscard]] friend constexpr auto operator<=>(const pointer& a, const pointer& b) noexcept = default;
+                };
+
+                kb      keyboard = {};
+                pointer mouse    = {};
+
+                [[nodiscard]] friend constexpr bool operator==(const seat& a, const seat& b) noexcept  = default;
+                [[nodiscard]] friend constexpr bool operator!=(const seat& a, const seat& b) noexcept  = default;
+                [[nodiscard]] friend constexpr auto operator<=>(const seat& a, const seat& b) noexcept = default;
+            };
+
+            seat inputs = {};
+        };
+
         shm_pool                  pool;
         shm_buffer                buffer;
         xdg::wm_base              wm_base;
         xdg::surface              surface;
         xdg::toplevel             toplevel;
+        seat                      inputs;
         std::optional<decoration> deco;
         window_info               info;
+        window_state              state;
+        event_state               internal_state;
 
         components(display& parent, window_info i)
             : pool{construct_pool(parent)},
@@ -132,21 +179,32 @@ public:
               wm_base{parent},
               surface{construct_surface()},
               toplevel{construct_toplevel()},
+              inputs{parent},
               deco{construct_decoration(parent, i)},
-              info{std::move(i)}
+              info{std::move(i)},
+              state{},
+              internal_state{}
         {
         }
 
-        components(
-            shm_pool p, shm_buffer buf, xdg::wm_base xm, xdg::surface surf, xdg::toplevel top, std::optional<decoration> dec, window_info i) noexcept
+        components(shm_pool                  p,
+                   shm_buffer                buf,
+                   xdg::wm_base              xm,
+                   xdg::surface              surf,
+                   xdg::toplevel             top,
+                   seat                      in,
+                   std::optional<decoration> dec,
+                   window_info               i) noexcept
             : pool{std::move(p)},
               buffer{std::move(buf)},
               wm_base{std::move(xm)},
               surface{std::move(surf)},
               toplevel{std::move(top)},
+              inputs{std::move(in)},
               deco{std::move(dec)},
-              info{std::move(i)}
-
+              info{std::move(i)},
+              state{},
+              internal_state{}
         {
         }
 
@@ -156,9 +214,16 @@ public:
               wm_base{std::move(other.wm_base)},
               surface{std::move(other.surface)},
               toplevel{std::move(other.toplevel)},
+              inputs{std::move(other.inputs)},
               deco{std::move(other.deco)},
-              info{std::move(other.info)}
+              info{std::move(other.info)},
+              state{std::exchange(other.state, window_state{})},
+              internal_state{std::exchange(other.internal_state, event_state{})}
         {
+            xdg_surface_set_user_data(surface.xdg_handle(), this);
+            xdg_toplevel_set_user_data(toplevel.handle(), this);
+            wl_pointer_set_user_data(inputs.parts().mouse.handle(), this);
+            wl_keyboard_set_user_data(inputs.parts().keyboard.handle(), this);
         }
 
         components& operator=(components&& other) noexcept
@@ -170,6 +235,8 @@ public:
         components(const components&)            = delete;
         components& operator=(const components&) = delete;
 
+        ~components() noexcept = default;
+
         void swap(components& other) noexcept
         {
             pool.swap(other.pool);
@@ -177,14 +244,22 @@ public:
             wm_base.swap(other.wm_base);
             surface.swap(other.surface);
             toplevel.swap(other.toplevel);
+            inputs.swap(other.inputs);
             deco.swap(other.deco);
             info.swap(other.info);
+            state.swap(other.state);
+            std::swap(internal_state, other.internal_state);
 
             xdg_surface_set_user_data(surface.xdg_handle(), this);
             xdg_surface_set_user_data(other.surface.xdg_handle(), std::addressof(other));
 
             xdg_toplevel_set_user_data(toplevel.handle(), this);
             xdg_toplevel_set_user_data(other.toplevel.handle(), std::addressof(other));
+
+            wl_pointer_set_user_data(inputs.parts().mouse.handle(), this);
+            wl_pointer_set_user_data(other.inputs.parts().mouse.handle(), std::addressof(other));
+
+            wl_keyboard_set_user_data(other.inputs.parts().keyboard.handle(), std::addressof(other));
         }
 
         friend void swap(components& a, components& b) noexcept { a.swap(b); }
@@ -263,6 +338,13 @@ public:
             return std::unexpected{any_call_info{}};
         }
 
+        auto inputs = seat::make(parent);
+
+        if(not inputs)
+        {
+            return std::unexpected{any_call_info{}};
+        }
+
         std::optional<decoration> deco = {};
 
         // Though Wayland windows are borderless by default (especially on platforms that don't support server-side decorations),
@@ -293,6 +375,7 @@ public:
                              *std::move(wm_base),
                              *std::move(surface),
                              *std::move(toplevel),
+                             *std::move(inputs),
                              std::move(deco),
                              std::move(i)};
 
@@ -345,6 +428,7 @@ private:
            xdg::wm_base              wm_base,
            xdg::surface              surface,
            xdg::toplevel             toplevel,
+           seat                      inputs,
            std::optional<decoration> deco,
            window_info               i) noexcept
         : m_registry{std::move(r)},
@@ -354,6 +438,7 @@ private:
               std::move(wm_base),
               std::move(surface),
               std::move(toplevel),
+              std::move(inputs),
               std::move(deco),
               std::move(i),
           }
